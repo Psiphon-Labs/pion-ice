@@ -4,6 +4,7 @@
 package ice
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -1564,7 +1565,7 @@ type stubUniversalUDPMux struct {
 	stubUDPMux
 }
 
-func (m *stubUniversalUDPMux) GetXORMappedAddr(net.Addr, time.Duration) (*stun.XORMappedAddress, error) {
+func (m *stubUniversalUDPMux) GetXORMappedAddr(context.Context, net.Addr, time.Duration) (*stun.XORMappedAddress, error) {
 	return nil, errStubNotImplemented
 }
 

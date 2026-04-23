@@ -6,6 +6,7 @@
 package ice
 
 import (
+	"context"
 	"encoding/binary"
 	"io"
 	"net"
@@ -13,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/ice/v4/internal/fakenet"
+	"github.com/Psiphon-Labs/pion-ice/v4/internal/fakenet"
 	"github.com/pion/logging"
 	"github.com/pion/stun/v3"
 	"github.com/stretchr/testify/require"
@@ -71,7 +72,7 @@ func testMuxSrflxConnection(t *testing.T, udpMux *UniversalUDPMuxDefault, ufrag 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		address, e := udpMux.GetXORMappedAddr(remoteConn.LocalAddr(), time.Second)
+		address, e := udpMux.GetXORMappedAddr(context.Background(), remoteConn.LocalAddr(), time.Second)
 		require.NoError(t, e)
 		require.NotNil(t, address)
 		require.True(t, address.IP.Equal(testXORIP))
@@ -114,7 +115,7 @@ func testMuxSrflxConnection(t *testing.T, udpMux *UniversalUDPMuxDefault, ufrag 
 	wg.Wait()
 
 	// We should get address immediately from the cached map
-	address, err := udpMux.GetXORMappedAddr(remoteConn.LocalAddr(), time.Second)
+	address, err := udpMux.GetXORMappedAddr(context.Background(), remoteConn.LocalAddr(), time.Second)
 	require.NoError(t, err)
 	require.NotNil(t, address)
 
@@ -129,7 +130,7 @@ func testMuxSrflxConnection(t *testing.T, udpMux *UniversalUDPMuxDefault, ufrag 
 
 	// After expire, we send STUN request again
 	// but we not receive response in 5 milliseconds and should get error here
-	address, err = udpMux.GetXORMappedAddr(remoteConn.LocalAddr(), time.Millisecond*5)
+	address, err = udpMux.GetXORMappedAddr(context.Background(), remoteConn.LocalAddr(), time.Millisecond*5)
 	require.NotNil(t, err)
 	require.Nil(t, address)
 }
@@ -353,7 +354,7 @@ func TestUniversalUDPMux_GetXORMappedAddr_Pending_WriteError(t *testing.T) {
 		},
 	}
 
-	addr, err := mux.GetXORMappedAddr(serverAddr, time.Second)
+	addr, err := mux.GetXORMappedAddr(context.Background(), serverAddr, time.Second)
 	require.Nil(t, addr)
 	require.ErrorIs(t, err, errWriteSTUNMessage)
 }
@@ -390,7 +391,7 @@ func TestUniversalUDPMux_GetXORMappedAddr_WaitClosed_NoAddr(t *testing.T) {
 		},
 	}
 
-	addr, err := mux.GetXORMappedAddr(serverAddr, time.Second)
+	addr, err := mux.GetXORMappedAddr(context.Background(), serverAddr, time.Second)
 	require.Nil(t, addr)
 	require.ErrorIs(t, err, errNoXorAddrMapping)
 }

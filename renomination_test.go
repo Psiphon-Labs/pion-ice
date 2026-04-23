@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/ice/v4/internal/fakenet"
+	"github.com/Psiphon-Labs/pion-ice/v4/internal/fakenet"
 	"github.com/pion/stun/v3"
 	"github.com/stretchr/testify/assert"
 )

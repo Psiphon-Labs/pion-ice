@@ -4,6 +4,7 @@
 package ice
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -18,7 +19,8 @@ import (
 // Actual connection muxing is happening in the UDPMux.
 type UniversalUDPMux interface {
 	UDPMux
-	GetXORMappedAddr(stunAddr net.Addr, deadline time.Duration) (*stun.XORMappedAddress, error)
+	// [Psiphon] Added context.Context parameter for cancellation support.
+	GetXORMappedAddr(ctx context.Context, stunAddr net.Addr, deadline time.Duration) (*stun.XORMappedAddress, error)
 	GetRelayedAddr(turnAddr net.Addr, deadline time.Duration) (*net.Addr, error)
 	GetConnForURL(ufrag string, url string, addr net.Addr) (net.PacketConn, error)
 }
@@ -72,6 +74,11 @@ func NewUniversalUDPMuxDefault(params UniversalUDPMuxParams) *UniversalUDPMuxDef
 		Net:     mux.params.Net,
 	}
 	mux.UDPMuxDefault = NewUDPMuxDefault(udpMuxParams)
+
+	// [Psiphon]
+	// Launch connWorker here after assignment, not inside NewUDPMuxDefault,
+	// to avoid a data race. See comment in NewUDPMuxDefault.
+	go mux.UDPMuxDefault.connWorker()
 
 	return mux
 }
@@ -173,10 +180,27 @@ func (m *UniversalUDPMuxDefault) handleXORMappedResponse(stunAddr *net.UDPAddr, 
 // Makes a STUN binding request to discover mapped address otherwise.
 // Blocks until the stun.XORMappedAddress has been discovered or deadline.
 // Method is safe for concurrent use.
+//
+// [Psiphon] Added context.Context parameter so STUN binding requests can be
+// cancelled promptly when the WebRTC dial is aborted, instead of blocking
+// for the full STUN timeout. Also replaced time.After with time.NewTimer
+// to avoid leaking timers.
 func (m *UniversalUDPMuxDefault) GetXORMappedAddr(
+	ctx context.Context,
 	serverAddr net.Addr,
 	deadline time.Duration,
 ) (*stun.XORMappedAddress, error) {
+
+	// [Psiphon] Treat nil context as background for backward compatibility.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	m.mu.Lock()
 	mappedAddr, ok := m.xorMappedMap[serverAddr.String()]
 	// If we already have a mapping for this STUN server (address already received)
@@ -202,6 +226,10 @@ func (m *UniversalUDPMuxDefault) GetXORMappedAddr(
 		return nil, fmt.Errorf("%w: %s", errWriteSTUNMessage, err) //nolint:errorlint
 	}
 
+	// [Psiphon] Use NewTimer + defer Stop to avoid leaking timers.
+	timer := time.NewTimer(deadline)
+	defer timer.Stop()
+
 	// Block until response was handled by the connWorker routine and XORMappedAddress was updated
 	select {
 	case <-waitAddrReceived:
@@ -214,8 +242,10 @@ func (m *UniversalUDPMuxDefault) GetXORMappedAddr(
 		}
 
 		return mappedAddr.addr, nil
-	case <-time.After(deadline):
+	case <-timer.C:
 		return nil, errXORMappedAddrTimeout
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 

@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Psiphon-Labs/pion-ice/v4/internal/taskloop"
 	"github.com/pion/dtls/v3"
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
-	"github.com/pion/ice/v4/internal/taskloop"
 	"github.com/pion/logging"
 	"github.com/pion/stun/v3"
 	transport "github.com/pion/transport/v4"
@@ -3462,7 +3462,7 @@ func (m *universalUDPMuxMock) GetConnForURL(string, string, net.Addr) (net.Packe
 	return m.conn, nil
 }
 
-func (m *universalUDPMuxMock) GetXORMappedAddr(net.Addr, time.Duration) (*stun.XORMappedAddress, error) {
+func (m *universalUDPMuxMock) GetXORMappedAddr(context.Context, net.Addr, time.Duration) (*stun.XORMappedAddress, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.getXORMappedAddrUsedTimes++
@@ -3950,7 +3950,7 @@ func newMockUniversalUDPMux(addrs []net.Addr, xorAddr *stun.XORMappedAddress) *m
 	}
 }
 
-func (m *mockUniversalUDPMux) GetXORMappedAddr(net.Addr, time.Duration) (*stun.XORMappedAddress, error) {
+func (m *mockUniversalUDPMux) GetXORMappedAddr(context.Context, net.Addr, time.Duration) (*stun.XORMappedAddress, error) {
 	return m.xorAddr, nil
 }
 

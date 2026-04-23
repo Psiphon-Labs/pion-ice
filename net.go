@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/pion/ice/v4/internal/netutil"
+	"github.com/Psiphon-Labs/pion-ice/v4/internal/netutil"
 	"github.com/pion/logging"
 	"github.com/pion/transport/v4"
 )

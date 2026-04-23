@@ -14,14 +14,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Psiphon-Labs/pion-ice/v4/internal/fakenet"
+	stunx "github.com/Psiphon-Labs/pion-ice/v4/internal/stun"
 	"github.com/pion/dtls/v3"
-	"github.com/pion/ice/v4/internal/fakenet"
-	stunx "github.com/pion/ice/v4/internal/stun"
 	"github.com/pion/logging"
 	"github.com/pion/stun/v3"
 	"github.com/pion/transport/v4/stdnet"
 	"github.com/pion/turn/v4"
 )
+
+// [Psiphon]
+// The API for this Psiphon fork is identical to upstream, apart from this
+// symbol, which may be used to verify that the fork is used when compiling.
+const IsPsiphon = true
 
 type turnClient interface {
 	Listen() error
@@ -669,6 +674,19 @@ func (a *Agent) gatherCandidatesSrflxUDPMux(ctx context.Context, urls []*stun.UR
 
 					continue
 				}
+
+			// [Psiphon]
+			//
+			// - GetListenAddresses returns both IPv4 and IPv6 addresses,
+			//   but this loop iteration should use only one or the other,
+			//   depending on networkType.
+			//
+			// - Without this filter, we get 2x duplicate STUN requests
+			//   and candidates.
+				if networkType.IsIPv4() != (udpAddr.IP.To4() != nil) {
+					continue
+				}
+
 				wg.Add(1)
 				go func(url stun.URI, network string, localAddr *net.UDPAddr) {
 					defer wg.Done()
@@ -687,7 +705,8 @@ func (a *Agent) gatherCandidatesSrflxUDPMux(ctx context.Context, urls []*stun.UR
 						return
 					}
 
-					xorAddr, err := a.udpMuxSrflx.GetXORMappedAddr(serverAddr, a.stunGatherTimeout)
+					// [Psiphon] Pass ctx so STUN doesn't block dial cancellation.
+					xorAddr, err := a.udpMuxSrflx.GetXORMappedAddr(ctx, serverAddr, a.stunGatherTimeout)
 					if err != nil {
 						a.log.Warnf("Failed get server reflexive address %s %s: %v", network, url, err)
 
